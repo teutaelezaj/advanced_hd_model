@@ -123,21 +123,6 @@ sns.countplot(
 plt.grid(False)
 plt.show()
 
-
-# fitness_order=hd_data.PhysicalHealth.value_counts().index
-
-# plt.figure(figsize=(14, 7))
-
-# sns.countplot(
-#     x="PhysicalHealth",
-#     data=hd_data,
-#     order=fitness_order,
-#     palette=["blue"] + ["red"] + ["yellow"] + (len(fitness_order)-1)*["grey"]
-# )
-# plt.grid(False)
-# plt.show()
-
-
 X = hd_data.drop(columns=["HeartDisease"]).copy()
 y = hd_data["HeartDisease"].copy()
 
