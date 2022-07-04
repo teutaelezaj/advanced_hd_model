@@ -1,0 +1,281 @@
+import math
+from collections import Counter, defaultdict
+from functools import partial
+from pprint import pprint
+
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
+import seaborn as sns
+from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay, \
+                            classification_report
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import StandardScaler, OrdinalEncoder, OneHotEncoder
+from sklearn.tree import DecisionTreeClassifier, plot_tree
+
+plt.style.use("fivethirtyeight")
+
+print('Import Done...')
+
+# Input data files are available in the read-only "../input/" directory
+# For example, running this (by clicking run or pressing Shift+Enter) will list all files under the input directory
+
+import os
+for dirname, _, filenames in os.walk('/kaggle/input'):
+    for filename in filenames:
+        print(os.path.join(dirname, filename))
+
+# You can write up to 20GB to the current directory (/kaggle/working/) that gets preserved as output when you create a version using "Save & Run All" 
+# You can also write temporary files to /kaggle/temp/, but they won't be saved outside of the current session
+
+hd_data=pd.read_csv('/kaggle/input/personal-key-indicators-of-heart-disease/heart_2020_cleaned.csv')
+# hd_data.head()
+
+avg_phy_hlt = hd_data['PhysicalHealth'].mean()
+print('The average physical health in the dataset is :')
+print(avg_phy_hlt)
+
+# hd_data.info()
+
+
+## Separating numerical and categorical features
+numerical_features=hd_data.select_dtypes(include='number').columns.tolist()
+categorical_features=hd_data.select_dtypes(include='object').columns.tolist()
+
+#Validation
+print('Numerical Features :')
+print(numerical_features,'\n')
+print('Categorical Features :')
+print(categorical_features)
+
+
+hd_data[numerical_features].describe().T
+
+
+hd_data[numerical_features].plot(kind="box", figsize=(12, 9))
+plt.grid(False)
+plt.show()
+
+hd_data.corr()
+
+hd_data[categorical_features].head()
+
+## checking unique value each columns
+hd_data[categorical_features].nunique()
+
+for i in categorical_features:
+    print(hd_data[i].value_counts())
+    
+    
+fitness_order=hd_data.PhysicalActivity.value_counts().index
+
+plt.figure(figsize=(14, 7))
+
+sns.countplot(
+    x="PhysicalActivity",
+    data=hd_data,
+    order=fitness_order,
+    palette=["blue"] + ["red"] + ["yellow"] + (len(fitness_order)-1)*["grey"]
+)
+plt.grid(False)
+plt.show()
+
+
+health_order=hd_data['GenHealth'].value_counts().index
+
+plt.figure(figsize=(14, 7))
+
+sns.countplot(
+    x="GenHealth",
+    data=hd_data,
+    order=health_order,
+    palette=["blue"] + (len(health_order)-1)*["grey"]
+)
+plt.grid(False)
+plt.show()
+
+
+sex_order=hd_data['Sex'].value_counts().index
+
+plt.figure(figsize=(14, 7))
+
+sns.countplot(
+    x="Sex",
+    data=hd_data,
+    order=sex_order,
+    palette=["blue"] + (len(sex_order)-1)*["grey"]
+)
+plt.grid(False)
+plt.show()
+
+
+
+health_order=hd_data['PhysicalHealth'].value_counts().index
+
+plt.figure(figsize=(14, 7))
+
+sns.countplot(
+    x="PhysicalHealth",
+    data=hd_data,
+    order=health_order,
+    palette=["blue"] + (len(health_order)-1)*["grey"]
+)
+plt.grid(False)
+plt.show()
+
+
+# fitness_order=hd_data.PhysicalHealth.value_counts().index
+
+# plt.figure(figsize=(14, 7))
+
+# sns.countplot(
+#     x="PhysicalHealth",
+#     data=hd_data,
+#     order=fitness_order,
+#     palette=["blue"] + ["red"] + ["yellow"] + (len(fitness_order)-1)*["grey"]
+# )
+# plt.grid(False)
+# plt.show()
+
+
+X = hd_data.drop(columns=["HeartDisease"]).copy()
+y = hd_data["HeartDisease"].copy()
+
+
+X_train, X_rest, y_train, y_rest = train_test_split(X, y, test_size=.1, stratify=y, random_state=11)
+X_dev, X_test, y_dev, y_test = train_test_split(X_rest, y_rest, test_size=.5, stratify=y_rest, random_state=11)
+
+print("training size:", X_train.shape[0])
+print("dev size:", X_dev.shape[0])
+print("test size:", X_test.shape[0])
+
+
+## Declaring the Variable
+nominal_features = ["Race", "Sex"]
+ordinal_features = X.select_dtypes(
+    include="object"
+).drop(columns=nominal_features).columns.tolist()
+
+print("nominal features:", nominal_features)
+print("ordinal features:")
+pprint(ordinal_features, compact=True)
+
+
+onehot = OneHotEncoder()
+onehot.fit(X_train[nominal_features])
+X_train_onehot = pd.DataFrame(
+    onehot.transform(X_train[nominal_features]).toarray(),
+    columns=onehot.get_feature_names_out()
+)
+X_dev_onehot = pd.DataFrame(
+    onehot.transform(X_dev[nominal_features]).toarray(),
+    columns=onehot.get_feature_names_out()
+)
+X_test_onehot = pd.DataFrame(
+    onehot.transform(X_test[nominal_features]).toarray(),
+    columns=onehot.get_feature_names_out()
+)
+print("one-hot matrix:")
+print(X_train_onehot)
+
+ordinal = OrdinalEncoder()
+ordinal.fit(X_train[ordinal_features])
+X_train_ordinal = pd.DataFrame(
+    ordinal.transform(X_train[ordinal_features]),
+    columns=ordinal.feature_names_in_
+)
+X_dev_ordinal = pd.DataFrame(
+    ordinal.transform(X_dev[ordinal_features]),
+    columns=ordinal.feature_names_in_
+)
+X_test_ordinal = pd.DataFrame(
+    ordinal.transform(X_test[ordinal_features]),
+    columns=ordinal.feature_names_in_
+)
+print("ordinal matrix:")
+print(X_train_ordinal)
+
+
+pd.concat(
+    [X_train.PhysicalActivity.reset_index(drop=True), X_train_ordinal.PhysicalActivity],
+    axis=1,
+    ignore_index=True
+).groupby(1)[0].agg(set)
+
+
+X_train_combined = pd.concat(
+    [X_train[numerical_features].reset_index(drop=True), X_train_onehot, X_train_ordinal],
+    axis=1
+)
+X_dev_combined = pd.concat(
+    [X_dev[numerical_features].reset_index(drop=True), X_dev_onehot, X_dev_ordinal],
+    axis=1
+)
+X_test_combined = pd.concat(
+    [X_test[numerical_features].reset_index(drop=True), X_test_onehot, X_test_ordinal],
+    axis=1
+)
+
+X_train_combined.head()
+
+
+
+from IPython.display import display
+scaler = StandardScaler()
+scaler.fit(X_train_combined)
+
+X_train_scaled = pd.DataFrame(
+    scaler.transform(X_train_combined),
+    columns=X_train_combined.columns
+)
+X_dev_scaled = pd.DataFrame(
+    scaler.transform(X_dev_combined),
+    columns=X_dev_combined.columns
+)
+X_test_scaled = pd.DataFrame(
+    scaler.transform(X_test_combined),
+    columns=X_test_combined.columns
+)
+
+with pd.option_context("display.max_columns", None):
+    display(X_train_scaled.head())
+    
+    
+
+    
+model_default = DecisionTreeClassifier(random_state=11)
+model_default.fit(X_train_scaled, y_train)
+
+preds_train = model_default.predict(X_train_scaled)
+preds_dev = model_default.predict(X_dev_scaled)
+preds_test = model_default.predict(X_test_scaled)
+
+
+
+## Quick Testing the Model
+print("train prediction samples:\n", preds_train[:10])
+print("train target samples:\n", y_train[:10].tolist())
+print("test prediction samples:\n", preds_test[:10])
+print("test target samples:\n", y_test[:10].tolist())
+
+
+## Run this if you want to see the model visualization
+plt.figure(figsize=(12, 6))
+plot_tree(model_default, max_depth=5)
+plt.show()
+
+
+print(classification_report(y_train, preds_train))
+
+ConfusionMatrixDisplay.from_predictions(y_train, preds_train)
+plt.title("Confusion Matrix")
+plt.grid(False)
+plt.show()
+
+
+print(classification_report(y_test, preds_test))
+
+ConfusionMatrixDisplay.from_predictions(y_test, preds_test)
+plt.title("Confusion Matrix")
+plt.grid(False)
+plt.show()
